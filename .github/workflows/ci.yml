@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: shellcheck --shell=bash src/dtrack-lifecycle.sh tests/test_helper/*.bash
+
+  validate-action-yaml:
+    name: Validate action.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install yamllint
+        run: sudo apt-get update && sudo apt-get install -y yamllint
+
+      - name: Lint YAML style
+        run: yamllint --config-file .yamllint.yml action.yml .github/workflows/
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+        run: |
+          script_url="https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash"
+          bash <(curl -s "$script_url") "$ACTIONLINT_VERSION"
+          sudo mv ./actionlint /usr/local/bin/actionlint
+
+      # actionlint only validates a composite action's metadata (required
+      # keys, runs.using, branding, etc.) when it is referenced from a
+      # workflow via `uses: ./...`; it cannot be pointed at action.yml
+      # directly. The step below exists purely so actionlint's workflow
+      # scan picks up and validates this repo's action.yml. The `if:`
+      # guard is a runtime-only condition (never true) rather than a
+      # literal so actionlint doesn't flag it as a constant condition,
+      # and this step never actually executes.
+      - name: Reference this action so actionlint validates its metadata
+        if: github.repository == 'actionlint-metadata-check-never-runs'
+        uses: ./
+        with:
+          dtrack-uri: https://dtrack.example.com
+          api-key: unused
+          project-name: unused
+
+      - name: Validate workflow files and action metadata
+        run: actionlint
+
+  test:
+    name: Bats tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Setup Bats and Bats libs
+        id: setup-bats
+        uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef  # 4.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Bats tests
+        env:
+          BATS_LIB_PATH: ${{ steps.setup-bats.outputs.lib-path }}
+          TERM: xterm
+        run: bats tests/

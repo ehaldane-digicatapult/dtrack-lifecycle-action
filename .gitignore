@@ -1,0 +1,4 @@
+# Ignore the following
+.devcontainer
+node_modules
+openapi.json

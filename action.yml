@@ -1,0 +1,77 @@
+name: 'Dependency-Track Project Lifecycle'
+description: >-
+  Manages Dependency-Track project lifecycle: reparents orphaned versioned
+  projects under their unversioned parent, and/or deactivates old versions
+  so downstream vulnerability scanners (Trivy, Snyk, Sonatype, etc.) only
+  pick up the versions you actually want scanned.
+author: 'dtrack-lifecycle-action'
+
+inputs:
+  dtrack-uri:
+    description: 'Base URL of the Dependency-Track instance, e.g. https://dtrack.example.com'
+    required: true
+  api-key:
+    description: >-
+      Dependency-Track API key. Requires the PORTFOLIO_MANAGEMENT and
+      VIEW_PORTFOLIO permissions. Pass this via a GitHub Actions secret,
+      never hardcode it in your workflow.
+    required: true
+  project-name:
+    description: 'Comma-delimited list of project names to operate on'
+    required: true
+  operation:
+    description: >-
+      Which lifecycle operation(s) to run: "reparent", "deactivate", or
+      "both" (runs reparent first, then deactivate).
+    required: false
+    default: 'deactivate'
+  keep-n:
+    description: >-
+      Number of most recent versions to keep active. Only used by the
+      deactivate operation.
+    required: false
+    default: '1'
+  keep-active:
+    description: >-
+      Comma-delimited list of versions to always keep active, regardless
+      of KEEP_N. Only used by the deactivate operation.
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run dtrack-lifecycle
+      shell: bash
+      env:
+        DTRACK_URI: ${{ inputs.dtrack-uri }}
+        API_KEY: ${{ inputs.api-key }}
+        PROJECT_NAME: ${{ inputs.project-name }}
+        KEEP_N: ${{ inputs.keep-n }}
+        KEEP_ACTIVE: ${{ inputs.keep-active }}
+        OPERATION: ${{ inputs.operation }}
+      run: |
+        set -euo pipefail
+        script="${{ github.action_path }}/src/dtrack-lifecycle.sh"
+
+        case "$OPERATION" in
+          reparent)
+            "$script" reparent
+            ;;
+          deactivate)
+            "$script" deactivate
+            ;;
+          both)
+            "$script" reparent
+            "$script" deactivate
+            ;;
+          *)
+            printf 'ERROR: Unknown operation "%s", expected reparent, deactivate, or both\n' \
+              "$OPERATION" >&2
+            exit 1
+            ;;
+        esac
+
+branding:
+  icon: 'refresh-cw'
+  color: 'blue'
