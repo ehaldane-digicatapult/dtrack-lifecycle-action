@@ -73,6 +73,19 @@ load test_helper/common
     assert_failure
 }
 
+@test "is_kept_alive does not raise unbound variable under set -u with an empty KEEP_ACTIVE_LIST" {
+    # Regression test for bash < 4.4 (e.g. macOS's stock /bin/bash 3.2).
+    KEEP_ACTIVE_LIST=()
+    run bash -c '
+        set -u
+        source "'"${BATS_TEST_DIRNAME}"'/../src/dtrack-lifecycle.sh"
+        KEEP_ACTIVE_LIST=()
+        is_kept_alive "1.2.3"
+    '
+    assert_failure
+    refute_output --partial "unbound variable"
+}
+
 @test "dtrack_get_page returns the body and total count on HTTP 200" {
     mock_curl_enqueue 200 '[{"uuid":"a"}]' $'X-Total-Count: 1\r\n'
     run dtrack_get_page "demo-service" 1

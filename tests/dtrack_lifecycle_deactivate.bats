@@ -104,6 +104,38 @@ load test_helper/common
     assert_equal "$(mock_curl_call_count)" "1"
 }
 
+@test "deactivate works when KEEP_ACTIVE is unset (unbound variable regression)" {
+    unset KEEP_ACTIVE
+    KEEP_N="1"
+    mock_curl_enqueue 200 '[
+        {"uuid":"v1","version":"1.0.0","active":true},
+        {"uuid":"v2","version":"2.0.0","active":true}
+    ]' $'X-Total-Count: 2\r\n'
+    mock_curl_enqueue 200 '{"uuid":"v1","active":false}'
+
+    run cmd_deactivate
+    assert_success
+    refute_output --partial "unbound variable"
+    assert_output --partial "Deactivating demo-service@1.0.0"
+    assert_equal "$(mock_curl_call_count)" "2"
+}
+
+@test "deactivate works when KEEP_ACTIVE is an empty string (unbound variable regression)" {
+    KEEP_ACTIVE=""
+    KEEP_N="1"
+    mock_curl_enqueue 200 '[
+        {"uuid":"v1","version":"1.0.0","active":true},
+        {"uuid":"v2","version":"2.0.0","active":true}
+    ]' $'X-Total-Count: 2\r\n'
+    mock_curl_enqueue 200 '{"uuid":"v1","active":false}'
+
+    run cmd_deactivate
+    assert_success
+    refute_output --partial "unbound variable"
+    assert_output --partial "Deactivating demo-service@1.0.0"
+    assert_equal "$(mock_curl_call_count)" "2"
+}
+
 @test "deactivate reports when every remaining version is covered by KEEP_ACTIVE" {
     KEEP_ACTIVE="1.0.0"
     mock_curl_enqueue 200 '[
