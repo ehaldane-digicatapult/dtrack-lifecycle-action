@@ -299,6 +299,9 @@ cmd_reparent() {
 is_kept_alive() {
     local version="$1"
     local kept
+    if [[ "${#KEEP_ACTIVE_LIST[@]}" -eq 0 ]]; then
+        return 1
+    fi
     for kept in "${KEEP_ACTIVE_LIST[@]}"; do
         [[ "$version" == "$kept" ]] && return 0
     done
@@ -353,7 +356,7 @@ cmd_deactivate() {
         local version uuid active
         local -a candidate_lines=()
         while IFS=$'\t' read -r version uuid active; do
-            if is_kept_alive "$version"; then
+            if [[ "${#KEEP_ACTIVE_LIST[@]}" -gt 0 ]] && is_kept_alive "$version"; then
                 printf 'INFO: [deactivate] %s@%s (uuid: %s) is in KEEP_ACTIVE, skipping\n' \
                     "$name" "$version" "$uuid"
                 continue
